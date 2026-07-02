@@ -1,6 +1,25 @@
 # Interface Tester
 
-Aplicacion de escritorio en Python para probar luces de paneles usando las definiciones `.dat` de `InterfaceDefinition`.
+Aplicacion de escritorio en Python para probar paneles mediante una conexion serial y definiciones de interfaz `.dat` cargadas por el usuario.
+
+Version actual: `0.2.39`.
+
+## Cambios recientes
+
+### Version 0.2.39
+
+- La pestana `Report` permanece oculta al iniciar y se puede mostrar u ocultar desde `View > Show Report`.
+- Se agrego la pestana opcional `Help`, disponible desde `View > Show Help`.
+- Ocultar `Report` o `Help` no elimina sus controles, resultados ni estado actual.
+- `Help` incluye los comandos transmitidos con mayor frecuencia, ejemplos de uso, formatos de respuesta y advertencias para comandos que modifican configuracion persistente o mueven hardware.
+- La release publica no contiene definiciones de panel `.dat`; deben cargarse externamente desde la GUI.
+
+### Version 0.2.38
+
+- Se agrego el test automatico de displays basado en campos `BIT-FLD` de 7 u 8 bits detectados en el `.dat`.
+- Cada word de display recibe dos caracteres para evitar que el comando `S` se extienda sobre words siguientes.
+- Para ATCTCAS se detectan `w30`, `w31` y `w32`; el mapa inicial `12 34 56` permite identificar la posicion fisica de los seis digitos.
+- La secuencia configurable recorre valores alfanumericos, permite ajustar el tiempo por paso, detener el barrido y restaurar `00` al finalizar.
 
 ## Ejecutar en desarrollo
 
@@ -18,7 +37,7 @@ Antes de empaquetar o probar con paneles reales puedes correr un smoke de GUI si
 python tools\gui_smoke.py
 ```
 
-El smoke carga el `.dat` A320, valida comandos de luces, planes de entradas/salidas, reporte, estado operativo y round-trip de sesion.
+El smoke requiere que el `.dat` A320 este disponible localmente. Valida comandos de luces, planes de entradas/salidas, reporte, estado operativo, pestanas opcionales y round-trip de sesion.
 
 ## Flujo actual
 
@@ -149,9 +168,27 @@ La pestana `Salidas` permite enviar comandos directos adicionales:
 El test automatico de display exige un panel exacto detectado o una familia con una sola variante y no se inicia mientras `VER 3` o un test de luces esten activos.
 El plan de salidas no genera comandos raw automaticos para actuadores, indicadores o discretas; se usa como mapa antes de decidir si conviene enviar `demo`, `ST`, `ST_Brushless` o un comando `w` manual.
 
+## Pestanas opcionales
+
+El menu `View` permite mostrar u ocultar dos pestanas que no aparecen al iniciar:
+
+- `Show Report`: muestra la pestana `Report`, que conserva resultados, comentarios y controles aunque vuelva a ocultarse.
+- `Show Help`: muestra la pestana `Help`, con una referencia de comandos y respuestas seriales.
+
+La ayuda integrada documenta, entre otros:
+
+- `i` para solicitar informacion de tarjeta.
+- `?` para pedir la ayuda soportada por el firmware.
+- `VER 3` para monitorear entradas.
+- `w <word> <hex>` con ejemplos `00ff`, `ff00`, `ffff` y `0000`.
+- `S <word> <text>` para displays compatibles.
+- `A <address>` y `SAVE` para asignacion persistente de direccion.
+- Formatos comunes recibidos por `Info` y `VER 3`.
+- Significado de `baseline`, `baseline_signal`, `changed` y `unmapped_change`.
+
 ## Reportes
 
-La pestana `Reporte` guarda resultados por panel durante la sesion y exporta archivos en `Reports`.
+La pestana `Report` guarda resultados por panel durante la sesion y exporta archivos en `Reports`. Esta pestana inicia oculta y se activa desde `View > Show Report`.
 
 Flujo recomendado:
 
@@ -308,4 +345,6 @@ Para reducir alertas de Windows Defender/SmartScreen:
 
 Sin firma, Windows puede mostrar "publicador desconocido" aunque la app no sea maliciosa.
 
-La configuracion del ejecutable vive en `setup.py`, incluyendo version, nombre, descripcion e inclusion de `InterfaceDefinition`.
+La configuracion del ejecutable vive en `setup.py`, incluyendo version, nombre, descripcion e inclusion opcional de `InterfaceDefinition` cuando existen definiciones locales durante el build.
+
+La release publica `0.2.39` no incluye los `.dat` de A320 ni ATR. El operador debe seleccionar la definicion correspondiente mediante `Load .dat`. Esta separacion permite mantener las definiciones fuera de la rama publica `main`.
