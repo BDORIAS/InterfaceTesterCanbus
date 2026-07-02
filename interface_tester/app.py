@@ -112,6 +112,91 @@ COMMAND_STATUS_OK = "OK"
 COMMAND_STATUS_NO_RESPONSE = "No response"
 COMMAND_STATUS_STARTED = "Started"
 
+HELP_REFERENCE_TEXT = """Interface Tester Command Reference
+
+Safety and connection
+---------------------
+- Connect only one panel/motherboard at a time.
+- Sim Host must already be downloaded before using Direct Mode.
+- Select the correct COM port, baud rate, and line ending before connecting.
+- Commands entered in the terminal are sent exactly as written.
+
+Common transmitted commands
+---------------------------
+i
+  Requests board information. The response may include channel, address,
+  firmware, hardware, baud rate, and CAN bus status.
+
+?
+  Requests the command help page from the connected board.
+
+VER 3
+  Starts verbose input monitoring. Interface Tester decodes compatible
+  word/value lines against the selected panel definition.
+
+w <word> <hex value>
+  Writes a 16-bit raw value to a word.
+  Examples:
+    w 1 00ff   Turn on bits 0-7.
+    w 1 ff00   Turn on bits 8-15.
+    w 1 ffff   Turn on bits 0-15.
+    w 1 0000   Turn off all bits in word 1.
+
+S <word> <text>
+  Writes display text when supported by the board firmware.
+  Examples:
+    S 30 12
+    S 31 34
+    S 32 56
+
+A <address>
+  Changes the board communication address. Use the address assignment
+  workflow so the change can be confirmed and verified.
+
+SAVE
+  Saves the current board setup to NVRAM. This changes persistent state.
+
+Other firmware-dependent commands
+---------------------------------
+demo, ST, ST_Brushless
+  Exercise supported indicators or devices. Availability depends on the
+  connected board firmware and panel type.
+
+Typical received formats
+------------------------
+Board identity:
+  Card detected @2.145 ready
+  Address: 145
+  Channel: 2
+  Software Version # 1.84
+
+VER 3 word updates:
+  VER 3 33 8000
+  w36 0100
+  Word: 8 Value: 00f0
+
+Input event meanings
+--------------------
+baseline
+  First value received for a word; establishes the comparison reference.
+
+baseline_signal
+  Active CI signal found in the first value.
+
+changed
+  A later value changed and matched a CI signal in the loaded .dat file.
+
+unmapped_change
+  Bits changed, but no CI signal for the selected panel uses that mask.
+
+Important
+---------
+- Interface Tester does not send VER 0 automatically when monitoring stops;
+  that stop command remains pending hardware validation.
+- Address, SAVE, reset, EEPROM, register, and motor commands can alter
+  persistent configuration or move hardware. Review them before sending.
+"""
+
 
 class InterfaceTesterApp(tk.Tk):
     def __init__(self) -> None:
@@ -198,6 +283,8 @@ class InterfaceTesterApp(tk.Tk):
         self.input_monitor_running = False
         self.display_test_stop_event = threading.Event()
         self.display_test_running = False
+        self.report_tab_visible_var = tk.BooleanVar(value=False)
+        self.help_tab_visible_var = tk.BooleanVar(value=False)
 
         self._configure_style()
         self._build_ui()
@@ -268,6 +355,21 @@ class InterfaceTesterApp(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(3, weight=1)
 
+        menu_bar = tk.Menu(self)
+        view_menu = tk.Menu(menu_bar, tearoff=False)
+        view_menu.add_checkbutton(
+            label="Show Report",
+            variable=self.report_tab_visible_var,
+            command=self.toggle_report_tab,
+        )
+        view_menu.add_checkbutton(
+            label="Show Help",
+            variable=self.help_tab_visible_var,
+            command=self.toggle_help_tab,
+        )
+        menu_bar.add_cascade(label="View", menu=view_menu)
+        self.configure(menu=menu_bar)
+
         file_bar = ttk.LabelFrame(self, text="Interface definition", padding=12, style="Section.TLabelframe")
         file_bar.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
         file_bar.columnconfigure(1, weight=1)
@@ -306,22 +408,50 @@ class InterfaceTesterApp(tk.Tk):
         self.main_notebook = ttk.Notebook(self)
         self.main_notebook.grid(row=3, column=0, sticky="nsew", padx=12, pady=(0, 8))
 
-        lights_tab = ttk.Frame(self.main_notebook, padding=8)
-        inputs_tab = ttk.Frame(self.main_notebook, padding=8)
-        outputs_tab = ttk.Frame(self.main_notebook, padding=8)
-        report_tab = ttk.Frame(self.main_notebook, padding=8)
-        console_tab = ttk.Frame(self.main_notebook, padding=8)
+        self.lights_tab = ttk.Frame(self.main_notebook, padding=8)
+        self.inputs_tab = ttk.Frame(self.main_notebook, padding=8)
+        self.outputs_tab = ttk.Frame(self.main_notebook, padding=8)
+        self.report_tab = ttk.Frame(self.main_notebook, padding=8)
+        self.console_tab = ttk.Frame(self.main_notebook, padding=8)
+        self.help_tab = ttk.Frame(self.main_notebook, padding=8)
+        lights_tab = self.lights_tab
+        inputs_tab = self.inputs_tab
+        outputs_tab = self.outputs_tab
+        report_tab = self.report_tab
+        console_tab = self.console_tab
+        help_tab = self.help_tab
         self.main_notebook.add(lights_tab, text="Lights")
         self.main_notebook.add(inputs_tab, text="Inputs")
         self.main_notebook.add(outputs_tab, text="Outputs")
-        self.main_notebook.add(report_tab, text="Report")
         self.main_notebook.add(console_tab, text="Terminal")
-        for tab in (lights_tab, inputs_tab, outputs_tab, report_tab, console_tab):
+        for tab in (lights_tab, inputs_tab, outputs_tab, report_tab, console_tab, help_tab):
             tab.columnconfigure(0, weight=1)
         lights_tab.rowconfigure(2, weight=1)
         inputs_tab.rowconfigure(1, weight=2, minsize=170)
         inputs_tab.rowconfigure(2, weight=1, minsize=120)
         console_tab.rowconfigure(1, weight=1)
+        help_tab.rowconfigure(0, weight=1)
+
+        help_text = tk.Text(
+            help_tab,
+            wrap="word",
+            state="normal",
+            background=SURFACE,
+            foreground=TEXT,
+            insertbackground=TEXT,
+            relief="solid",
+            borderwidth=1,
+            padx=14,
+            pady=12,
+            font=("Consolas", 10),
+        )
+        help_text.grid(row=0, column=0, sticky="nsew")
+        help_text.insert("1.0", HELP_REFERENCE_TEXT)
+        help_text.configure(state="disabled")
+        self.help_text = help_text
+        help_scroll = ttk.Scrollbar(help_tab, orient=tk.VERTICAL, command=help_text.yview)
+        help_scroll.grid(row=0, column=1, sticky="ns")
+        help_text.configure(yscrollcommand=help_scroll.set)
 
         diagnostic_bar = ttk.LabelFrame(console_tab, text="Serial diagnostics", padding=12, style="Section.TLabelframe")
         diagnostic_bar.grid(row=0, column=0, sticky="ew", pady=(0, 8))
@@ -775,6 +905,43 @@ class InterfaceTesterApp(tk.Tk):
         terminal_command_entry.bind("<Return>", lambda _event: self.send_custom_command())
         ttk.Button(terminal_bar, text="Send", command=self.send_custom_command, style="Primary.TButton").grid(row=0, column=2, padx=(0, 8))
         ttk.Button(terminal_bar, text="Clear terminal", command=self.clear_terminal_view, style="Secondary.TButton").grid(row=0, column=3)
+
+    def toggle_report_tab(self) -> None:
+        self.set_optional_tab_visibility(
+            self.report_tab,
+            "Report",
+            self.report_tab_visible_var.get(),
+            preferred_index=3,
+        )
+
+    def toggle_help_tab(self) -> None:
+        self.set_optional_tab_visibility(
+            self.help_tab,
+            "Help",
+            self.help_tab_visible_var.get(),
+            preferred_index=len(self.main_notebook.tabs()),
+        )
+
+    def set_optional_tab_visibility(
+        self,
+        tab: ttk.Frame,
+        title: str,
+        visible: bool,
+        *,
+        preferred_index: int,
+    ) -> None:
+        tab_id = str(tab)
+        visible_tabs = self.main_notebook.tabs()
+        is_visible = tab_id in visible_tabs
+        if visible and not is_visible:
+            index = min(preferred_index, len(visible_tabs))
+            if index >= len(visible_tabs):
+                self.main_notebook.add(tab, text=title)
+            else:
+                self.main_notebook.insert(index, tab, text=title)
+            self.main_notebook.select(tab)
+        elif not visible and is_visible:
+            self.main_notebook.forget(tab)
 
     def _bind_events(self) -> None:
         self.panel_tree.bind("<<TreeviewSelect>>", lambda _event: self.on_panel_changed())
