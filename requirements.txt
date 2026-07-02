@@ -1,0 +1,2 @@
+pyserial>=3.5
+cx-Freeze>=7.2; platform_system == "Windows"
