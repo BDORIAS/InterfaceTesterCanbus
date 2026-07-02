@@ -9,12 +9,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist" / "InterfaceTester"
 RELEASES_DIR = ROOT / "Releases"
-REQUIRED_DEFINITIONS = (
-    "0010110600001.dat",
-    "3014029.dat",
-)
-
-
 @dataclass(frozen=True)
 class CheckResult:
     status: str
@@ -45,13 +39,11 @@ def check_release_readiness() -> tuple[str, list[CheckResult]]:
     else:
         results.append(CheckResult("FAIL", f"No existe ejecutable valido: {exe_path}"))
 
-    definitions_dir = DIST_DIR / "InterfaceDefinition"
-    for definition_name in REQUIRED_DEFINITIONS:
-        definition_path = definitions_dir / definition_name
-        if definition_path.exists() and definition_path.stat().st_size > 0:
-            results.append(CheckResult("OK", f"Definicion incluida: {definition_name}"))
-        else:
-            results.append(CheckResult("FAIL", f"Falta definicion en dist: {definition_name}"))
+    embedded_definitions = sorted(DIST_DIR.glob("InterfaceDefinition/*.dat"))
+    if embedded_definitions:
+        results.append(CheckResult("WARN", f"Dist contiene {len(embedded_definitions)} definiciones .dat embebidas"))
+    else:
+        results.append(CheckResult("OK", "Sin definiciones .dat embebidas; se cargan externamente desde la GUI"))
 
     if (DIST_DIR / "python312.dll").exists():
         results.append(CheckResult("OK", "Runtime Python incluido"))

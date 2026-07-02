@@ -9,12 +9,15 @@ from interface_tester import __version__
 
 
 ROOT = Path(__file__).resolve().parent
+DEFINITIONS_DIR = ROOT / "InterfaceDefinition"
+
+include_files = []
+if DEFINITIONS_DIR.exists() and any(DEFINITIONS_DIR.glob("*.dat")):
+    include_files.append((str(DEFINITIONS_DIR), "InterfaceDefinition"))
 
 build_exe_options = {
     "build_exe": str(ROOT / "dist" / "InterfaceTester"),
-    "include_files": [
-        (str(ROOT / "InterfaceDefinition"), "InterfaceDefinition"),
-    ],
+    "include_files": include_files,
     "packages": [
         "interface_tester",
     ],

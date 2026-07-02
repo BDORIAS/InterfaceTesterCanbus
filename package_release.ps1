@@ -91,12 +91,12 @@ function New-Sha256Line {
 
 if (-not $SkipBuild) {
     $buildScript = Join-Path $Root "build_windows.ps1"
-    $buildArgs = @()
+    $buildArgs = @{}
     if ($SkipInstall) {
-        $buildArgs += "-SkipInstall"
+        $buildArgs["SkipInstall"] = $true
     }
     if ($SkipTests) {
-        $buildArgs += "-SkipTests"
+        $buildArgs["SkipTests"] = $true
     }
 
     & $buildScript @buildArgs
@@ -142,7 +142,7 @@ $notes = @(
     "",
     "Contenido:",
     "- InterfaceTester.exe y dependencias generadas por cx_Freeze.",
-    "- InterfaceDefinition incluido para pruebas locales.",
+    "- Los archivos .dat no estan incluidos; deben cargarse externamente desde la GUI.",
     "- release_manifest.json con metadata del paquete.",
     "- SHA256SUMS.txt con hashes de los archivos incluidos.",
     "",
